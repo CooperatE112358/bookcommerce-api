@@ -1,0 +1,1097 @@
+openapi: 3.0.0
+info:
+  title: BookCommerce API
+  version: 1.0.0
+  description: >
+    以 Express + javascript 建置的電商後端 API。使用 Prisma 連接 PostgreSQL，
+    並採用 JWT（Cookie/Authorization Bearer）作為認證機制。提供註冊/登入、商品瀏覽、訂單建立、評論撰寫與 Google Books 搜尋等功能。
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local
+
+tags:
+  - name: Auth
+    description: 使用者註冊、登入、登出
+  - name: Users
+    description: 使用者資料查詢與更新
+  - name: Products
+    description: 商品（書籍）
+  - name: Reviews
+    description: 評論
+  - name: Orders
+    description: 訂單
+  - name: Books
+    description: Google Books 搜尋
+  - name: Health
+    description: 健康檢查
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 註冊
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 建立成功
+          headers:
+            Set-Cookie:
+              description: 設定含 JWT 的 httpOnly Cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+      description: >
+        建立使用者帳號。第一位註冊者為ADMIN。成功時回傳簡化的使用者資訊並設定Cookie。
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登入
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登入成功
+          headers:
+            Set-Cookie:
+              description: 設定含 JWT 的 httpOnly Cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/logout:
+    get:
+      tags: [Auth]
+      summary: 登出
+      responses:
+        "200":
+          description: 已清除 Cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: user logged out
+
+  /users:
+    get:
+      tags: [Users]
+      summary: 取得所有一般使用者（僅管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UserPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: 取得單一使用者（本人或管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/UserPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /users/showMe:
+    get:
+      tags: [Users]
+      summary: 取得目前登入使用者資訊
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/TokenUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/updateUser:
+    patch:
+      tags: [Users]
+      summary: 更新使用者名稱與信箱（重新簽發 Token）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: 成功（重新設定 Cookie）
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /users/updateUserPassword:
+    patch:
+      tags: [Users]
+      summary: 更新密碼
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePasswordRequest"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: Success! Password updated.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /products:
+    get:
+      tags: [Products]
+      summary: 取得所有商品（書籍）
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Book"
+                  count:
+                    type: integer
+    post:
+      tags: [Products]
+      summary: 建立商品（僅管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Book"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: 取得單一商品
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Book"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Products]
+      summary: 更新商品（僅管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Book"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Products]
+      summary: 刪除商品（僅管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "204":
+          description: 已刪除
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /products/uploadImage:
+    post:
+      tags: [Products]
+      summary: 上傳商品圖片（僅管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  image:
+                    type: string
+                    example: /uploads/xxxx.jpg
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /products/{id}/reviews:
+    get:
+      tags: [Reviews]
+      summary: 取得某本書的所有評論
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+                  count:
+                    type: integer
+
+  /reviews:
+    get:
+      tags: [Reviews]
+      summary: 取得全部評論
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+                  count:
+                    type: integer
+    post:
+      tags: [Reviews]
+      summary: 新增評論（需登入）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewRequest"
+      responses:
+        "201":
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  review:
+                    $ref: "#/components/schemas/Review"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reviews/{id}:
+    get:
+      tags: [Reviews]
+      summary: 取得單一評論
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  review:
+                    $ref: "#/components/schemas/Review"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Reviews]
+      summary: 更新評論（本人或管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReviewRequest"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  review:
+                    $ref: "#/components/schemas/Review"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Reviews]
+      summary: 刪除評論（本人或管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "204":
+          description: 已刪除
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /orders:
+    get:
+      tags: [Orders]
+      summary: 取得所有訂單（僅管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  orders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Orders]
+      summary: 建立訂單（包含巢狀項目）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: 建立成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: "#/components/schemas/Order"
+                  clientSecret:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: 取得單一訂單（本人或管理員）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Orders]
+      summary: 更新訂單狀態（付款成功後）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paymentIntentId:
+                  type: string
+                status:
+                  type: string
+                  example: paid
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /orders/showAllMyOrders:
+    get:
+      tags: [Orders]
+      summary: 取得目前使用者的所有訂單
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  orders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /books/search:
+    get:
+      tags: [Books]
+      summary: 以關鍵字搜尋 Google Books
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: 關鍵字，預設 "javascript"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchBooksResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /health:
+    get:
+      tags: [Health]
+      summary: 健康檢查（應用與資料庫）
+      responses:
+        "200":
+          description: 正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthOk"
+        "500":
+          description: 錯誤
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  parameters:
+    PathId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+      description: ID（UUID/字串）
+
+  responses:
+    BadRequest:
+      description: 請求錯誤
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: 未認證或 Token 無效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: 已認證但無權限
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: 找不到資源
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        statusCode:
+          type: integer
+      example:
+        message: Resource not found
+        statusCode: 404
+
+    TokenUser:
+      type: object
+      properties:
+        userId:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, USER]
+      required: [userId, name, role]
+
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+        createdAt:
+          type: string
+          format: date-time
+
+    AuthSuccess:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/TokenUser"
+
+    RegisterRequest:
+      type: object
+      required: [email, name, password]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    UpdateUserRequest:
+      type: object
+      required: [email, name]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    UpdatePasswordRequest:
+      type: object
+      required: [oldPassword, newPassword]
+      properties:
+        oldPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+        googleVolumeId:
+          type: string
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        thumbnail:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: string
+        pageCount:
+          type: integer
+          nullable: true
+        publishedDate:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+        price:
+          type: number
+        inventory:
+          type: integer
+        avgRating:
+          type: number
+          format: float
+          nullable: true
+        numOfReviews:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateProductRequest:
+      type: object
+      required: [googleVolumeId, price, inventory]
+      properties:
+        googleVolumeId:
+          type: string
+        price:
+          type: number
+        inventory:
+          type: integer
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        thumbnail:
+          type: string
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        pageCount:
+          type: integer
+        publishedDate:
+          type: string
+        language:
+          type: string
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        price:
+          type: number
+        inventory:
+          type: integer
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        thumbnail:
+          type: string
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+          nullable: true
+        comment:
+          type: string
+          nullable: true
+        user:
+          type: object
+          properties:
+            name:
+              type: string
+        book:
+          type: object
+          properties:
+            title:
+              type: string
+        userId:
+          type: string
+        bookId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateReviewRequest:
+      type: object
+      required: [book, rating]
+      properties:
+        book:
+          type: string
+          description: 書籍 ID
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        comment:
+          type: string
+
+    UpdateReviewRequest:
+      type: object
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        comment:
+          type: string
+
+    OrderItemInput:
+      type: object
+      required: [book, amount]
+      properties:
+        book:
+          type: string
+          description: 書籍 ID
+        amount:
+          type: integer
+          minimum: 1
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        bookId:
+          type: string
+        price:
+          type: number
+        amount:
+          type: integer
+        title:
+          type: string
+          nullable: true
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        tax:
+          type: number
+        shippingFee:
+          type: number
+        subtotal:
+          type: number
+        total:
+          type: number
+        status:
+          type: string
+          example: pending
+        clientSecret:
+          type: string
+          nullable: true
+        orderItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+              format: email
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateOrderRequest:
+      type: object
+      required: [cartItems, tax, shippingFee]
+      properties:
+        cartItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemInput"
+        tax:
+          type: number
+        shippingFee:
+          type: number
+
+    SearchBooksResponse:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          title:
+            type: string
+          authors:
+            type: array
+            items:
+              type: string
+          thumbnail:
+            type: string
+          description:
+            type: string
+
+    HealthOk:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        db:
+          type: string
+          example: connected
+        uptime:
+          type: string
+          example: 123s
+        timestamp:
+          type: string
+          format: date-time
+    HealthError:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        db:
+          type: string
+          example: disconnected
+        uptime:
+          type: string
+          example: 123s
+        timestamp:
+          type: string
+          format: date-time

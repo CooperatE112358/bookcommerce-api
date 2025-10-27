@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  reviews   Review[]
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Book      Book[]
+}
+
+model Book {
+  id             String      @id @default(cuid())
+  googleVolumeId String?     @unique // 來源於 Google
+  title          String
+  authors        String[] // 以 array 儲存
+  thumbnail      String?
+  description    String?
+  categories     String[]
+  pageCount      Int?
+  publishedDate  String?
+  language       String?
+  price          Int // 售價（由 admin 自訂，單位 cents）
+  inventory      Int // 庫存
+  userId         String? // 上架人（admin）
+  user           User?       @relation(fields: [userId], references: [id])
+  reviews        Review[]
+  orderItems     OrderItem[]
+  avgRating      Float       @default(0)
+  numOfReviews   Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  title     String
+  comment   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, bookId]) // 同一使用者對同一本書僅能評論一次
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  name      String
+  price     Int
+  amount    Int
+  thumbnail String?
+  bookId    String
+  orderId   String
+  book      Book    @relation(fields: [bookId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  tax             Int
+  shippingFee     Int
+  subtotal        Int
+  total           Int
+  status          String      @default("pending")
+  clientSecret    String
+  paymentIntentId String?
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  orderItems      OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
