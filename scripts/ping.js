@@ -1,15 +1,11 @@
-/* Simple endpoint checker for BookCommerce API using axios.
-   - Persists cookies (manual) to traverse authenticated routes
-   - Prints status code and PASS/FAIL for each step
-   - Uses random email to avoid conflicts
-   - BASE_URL can be overridden via env (default: http://localhost:5000/api/v1)
-   Run: node ping.js
-*/
-
+const dotenv = require("dotenv");
 const axios = require("axios");
 const crypto = require("crypto");
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:5000/api/v1";
+dotenv.config();
+
+const port = process.env.PORT || 5000;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${port}/api/v1`;
 
 // -----------------------------------------------------
 // Minimal cookie jar (manual)
