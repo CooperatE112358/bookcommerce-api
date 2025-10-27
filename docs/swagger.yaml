@@ -6,9 +6,10 @@ info:
     以 Express + javascript 建置的電商後端 API。使用 Prisma 連接 PostgreSQL，
     並採用 JWT（Cookie/Authorization Bearer）作為認證機制。提供註冊/登入、商品瀏覽、訂單建立、評論撰寫與 Google Books 搜尋等功能。
 servers:
-  - url: http://localhost:5000/api/v1
+  - url: http://localhost:3000/api-docs
     description: Local
-
+  - url: http://3.107.238.247:3000/api-docs
+    description: Production
 tags:
   - name: Auth
     description: 使用者註冊、登入、登出
