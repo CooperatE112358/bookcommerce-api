@@ -3,7 +3,7 @@ const path = require("path");
 const yaml = require("yaml");
 const swaggerUi = require("swagger-ui-express");
 
-const swaggerPath = path.join(__dirname, "docs", "swagger.yaml");
+const swaggerPath = path.resolve(__dirname, "docs", "swagger.yaml");
 const swaggerFile = fs.readFileSync(swaggerPath, "utf8");
 const swaggerDocument = yaml.parse(swaggerFile);
 
