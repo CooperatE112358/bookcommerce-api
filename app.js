@@ -57,7 +57,11 @@ app.use(
     max: 60, // 每個 IP 最多 60 次請求
   })
 );
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // 關閉 CSP，否則 swagger-ui 會被擋
+  })
+);
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser(process.env.JWT_SECRET));
@@ -96,7 +100,6 @@ const startServer = async () => {
 
     const server = app.listen(port, "0.0.0.0", () => {
       console.log(`Server running on port ${port}`);
-      console.log(`Swagger docs: http://3.107.238.247:${port}/api-docs`);
     });
 
     setupGracefulShutdown(server);
