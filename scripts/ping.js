@@ -1,11 +1,21 @@
 const dotenv = require("dotenv");
 const axios = require("axios");
 const crypto = require("crypto");
+const os = require("os");
 
 dotenv.config();
 
 const port = process.env.PORT || 5000;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${port}/api/v1`;
+
+// 自動判斷環境（EC2 hostname 通常以 "ip-" 開頭）
+const isEC2 = os.hostname().startsWith("ip-");
+const BASE_URL =
+  process.env.BASE_URL ||
+  (isEC2
+    ? "http://3.107.238.247:3000/api/v1" //  改成你的 EC2 公網 IP
+    : `http://localhost:${port}/api/v1`);
+
+console.log(`🔗 Using BASE_URL: ${BASE_URL}`);
 
 // -----------------------------------------------------
 // Minimal cookie jar (manual)
@@ -105,7 +115,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     method: "post",
     url: "/auth/register",
     data: { email, name: "Tester", password },
-    expect: [201, 400], // 400 if email policy fails
+    expect: [201, 400],
     name: "Register",
   });
   if (r1.data?.user?.userId) userId = r1.data.user.userId;
@@ -155,7 +165,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     name: "Show me",
   });
 
-  // Update user (requires both name and email)
+  // Update user
   await step({
     method: "patch",
     url: "/users/updateUser",
@@ -173,7 +183,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     name: "Update password",
   });
 
-  // Users: admin-only list (first user may be ADMIN; otherwise expect 403)
+  // Users: admin-only list
   await step({
     method: "get",
     url: "/users",
@@ -181,7 +191,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     name: "List users (admin)",
   });
 
-  // Users: get by id (self or admin)
+  // Users: get by id
   if (userId) {
     await step({
       method: "get",
@@ -191,7 +201,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     });
   }
 
-  // Product details by id (if found)
+  // Product details
   if (productId) {
     await step({
       method: "get",
@@ -201,7 +211,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     });
   }
 
-  // Reviews: create -> get -> patch -> delete (if product available)
+  // Reviews: create -> get -> patch -> delete
   if (productId) {
     const rc = await step({
       method: "post",
@@ -240,7 +250,7 @@ async function call({ method, url, data, params, headers, expect = [], name }) {
     });
   }
 
-  // Orders: create -> get -> patch -> mine (if product available)
+  // Orders: create -> get -> patch -> mine
   if (productId) {
     const oc = await step({
       method: "post",
