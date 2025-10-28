@@ -94,9 +94,9 @@ const startServer = async () => {
     await prisma.$connect();
     console.log("Connected to PostgreSQL via Prisma");
 
-    const server = app.listen(port, () => {
+    const server = app.listen(port, "0.0.0.0", () => {
       console.log(`Server running on port ${port}`);
-      console.log(`Swagger docs: http://localhost:${port}/api-docs`);
+      console.log(`Swagger docs: http://3.107.238.247:${port}/api-docs`);
     });
 
     setupGracefulShutdown(server);
